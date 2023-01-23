@@ -206,7 +206,7 @@ impl StarknetEventsTable {
                                                 token_id,
                                                 block_number,
                                                 transaction_hash,
-                                                event_type: "Transferred".to_string()
+                                                event_type: "Transfer".to_string()
                                             };
                                 
                                             emitted_events.push(event);
