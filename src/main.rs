@@ -1,10 +1,9 @@
 #[allow(unused_variables)]
 use rusqlite::*;
-mod indexer;
 mod class;
 use std::time::{Duration, Instant};
 use pathfinder_common::{ EventKey,felt};
-mod storage;
+mod indexer;
 use serde::Deserialize;
 
 #[derive(Clone,serde::Deserialize, Debug, PartialEq, Eq)]
@@ -25,15 +24,12 @@ fn main() {
     { // open for db work
         let mut db = Connection::open("mainnet.sqlite").expect("db conn fail");
         let start = Instant::now();
-     
-        // let res = indexer::Indexer::getContract(&db);
-        let filter =&storage::StarknetEventFilter {
-            // we're using a key which is present in _all_ events
+             let filter =&indexer::StarknetEventFilter {
             keys: vec![EventKey(felt!("0x0099CD8BDE557814842A3121E8DDFD433A539B8C9F14BF31EBF108D12E6196E9"))],
         };
         let tx = db.transaction().unwrap();
 
-        let events = storage::StarknetEventsTable::get_events(&tx, filter);
+        let events = indexer::StarknetEventsTable::get_events(&tx, filter);
         let duration = start.elapsed();
         println!("res {:?}", events);
         println!("Time elapsed in getContract is: {:?}", duration);
