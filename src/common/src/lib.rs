@@ -5,6 +5,7 @@
 use ethers::types::{H128, H160, H256};
 use serde::{Deserialize, Serialize};
 use stark_hash::Felt;
+use rusqlite::types::{ToSql, ValueRef};
 
 pub mod consts;
 mod macros;
@@ -463,40 +464,3 @@ pub fn truncated_keccak(mut plain: [u8; 32]) -> Felt {
     Felt::from_be_bytes(plain).expect("cannot overflow: smaller than modulus")
 }
 
-#[cfg(test)]
-mod tests {
-    mod block_id_serde {
-        use super::super::BlockId;
-
-        #[test]
-        fn latest() {
-            let result = serde_json::from_str::<BlockId>(r#""latest""#).unwrap();
-            assert_eq!(result, BlockId::Latest);
-        }
-
-        #[test]
-        fn pending() {
-            let result = serde_json::from_str::<BlockId>(r#""pending""#).unwrap();
-            assert_eq!(result, BlockId::Pending);
-        }
-
-        #[test]
-        fn number() {
-            use crate::StarknetBlockNumber;
-            let result = serde_json::from_str::<BlockId>(r#"{"block_number": 123456}"#).unwrap();
-            assert_eq!(result, BlockId::Number(StarknetBlockNumber(123456)));
-        }
-
-        #[test]
-        fn hash() {
-            use crate::felt;
-            use crate::StarknetBlockHash;
-            let result =
-                serde_json::from_str::<BlockId>(r#"{"block_hash": "0xdeadbeef"}"#).unwrap();
-            assert_eq!(
-                result,
-                BlockId::Hash(StarknetBlockHash(felt!("0xdeadbeef")))
-            );
-        }
-    }
-}

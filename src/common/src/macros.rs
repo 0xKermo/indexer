@@ -268,7 +268,6 @@ pub(super) mod fmt {
 
     pub(crate) use {thin_debug, thin_display};
 }
-
 /// Creates a [Felt](stark_hash::Felt) from a hex string literal verified at compile time.
 #[macro_export]
 macro_rules! felt {
@@ -276,7 +275,7 @@ macro_rules! felt {
         // This forces const evaluation of the macro call. Without this the invocation will only be evaluated
         // at runtime.
         const CONST_FELT: stark_hash::Felt = match stark_hash::Felt::from_hex_str($hex) {
-            Ok(f) => f,
+            std::result::Result::Ok(f) => f,
             Err(stark_hash::HexParseError::InvalidNibble(_)) => panic!("Invalid hex digit"),
             Err(stark_hash::HexParseError::InvalidLength { .. }) => panic!("Too many hex digits"),
             Err(stark_hash::HexParseError::Overflow) => panic!("Felt overflow"),

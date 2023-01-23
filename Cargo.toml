@@ -1,5 +1,5 @@
 [package]
-name = "hello_world"
+name = "indexer"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,3 +18,10 @@ ff = { git = "https://github.com/eqlabs/ff", branch = "var_time_eq", default-fea
 serde = { version = "1.0.149", features = ["derive"] }
 serde_json = { version = "1.0.89", features = ["arbitrary_precision", "raw_value"] }
 stark_hash = { path = "./src/stark_hash" }
+pathfinder_common = { path = "./src/common" }
+flate2 = "1.0.25"
+pathfinder-serde = { path = "./src/serde" }
+starknet-gateway-types = { path = "./src/gateway-types" }
+tokio = { version = "1.23.0", features = ["process"] }
+serde_with = "2.1.0"
+thiserror = "1.0.37"
