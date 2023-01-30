@@ -22,6 +22,9 @@ pathfinder_common = { path = "./src/common" }
 flate2 = "1.0.25"
 pathfinder-serde = { path = "./src/serde" }
 starknet-gateway-types = { path = "./src/gateway-types" }
+moso-events = { path = "./src/events" }
+pathfinder-database= { path = "./src/database" }
 tokio = { version = "1.23.0", features = ["process"] }
 serde_with = "2.1.0"
 thiserror = "1.0.37"
+dotenv = "0.15.0"

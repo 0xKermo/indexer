@@ -1,0 +1,20 @@
+[package]
+name = "moso-events"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rusqlite = { version = "0.28.0", features = ["bundled"] }
+anyhow = "1.0.66"
+zstd = "0.12"
+base64 = "0.13.1"
+tokio = { version = "1.23.0", features = ["process"] }
+thiserror = "1.0.37"
+stark_curve = { path = "../stark_curve" }
+pathfinder_common = { path = "../common" }
+stark_hash = { path = "../stark_hash" }
+pathfinder-serde = { path = "../serde" }
+serde = { version = "1.0.149", features = ["derive"] }
+serde_json = { version = "1.0.89", features = ["arbitrary_precision", "raw_value"] }

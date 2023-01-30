@@ -1,2 +1,4 @@
 /target
 /mainnet.sqlite
+/mainnet_18617.sqlite
+/.env

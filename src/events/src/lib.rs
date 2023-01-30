@@ -1,18 +1,34 @@
-
-use crate::class::{ContractAbiEntry, ContractClass};
+mod class;
 use anyhow::Context;
+use class::{ContractAbiEntry, ContractClass};
 use pathfinder_common::{
-    ContractAddress, EventData, EventKey, StarknetTransactionHash,
+    ContractAddress, EventData, EventKey, StarknetBlockNumber, StarknetTransactionHash,
 };
+use pathfinder_serde::starkhash_to_dec_str;
 use rusqlite::Transaction;
+use serde::Serialize;
 use stark_hash::Felt;
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum EventType {
+    None,
+    Mint,
+    Burn,
+    Transfer,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+
+pub enum ContractType {
+    ERC721,
+    ERC1155,
+}
 
 pub struct StarknetEventFilter {
+    pub from_block: Option<StarknetBlockNumber>,
+    pub to_block: Option<StarknetBlockNumber>,
     pub keys: Vec<EventKey>,
 }
-use pathfinder_serde::starkhash_to_dec_str;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct StarknetEmittedEvent {
     pub contract_address: ContractAddress,
     from: String,
@@ -20,7 +36,8 @@ pub struct StarknetEmittedEvent {
     token_id: String,
     pub block_number: u64,
     pub transaction_hash: StarknetTransactionHash,
-    event_type: String,
+    event_type: EventType,
+    contrat_type: ContractType,
 }
 
 #[derive(Copy, Clone, Debug, thiserror::Error, PartialEq, Eq)]
@@ -43,6 +60,8 @@ impl StarknetEventsTable {
 
     fn event_query<'query, 'arg>(
         base: &'query str,
+        from_block: Option<&'arg StarknetBlockNumber>,
+        to_block: Option<&'arg StarknetBlockNumber>,
         keys: &'arg [EventKey],
         key_fts_expression: &'arg mut String,
     ) -> (
@@ -53,6 +72,24 @@ impl StarknetEventsTable {
 
         let mut where_statement_parts: Vec<&'static str> = Vec::new();
         let mut params: Vec<(&str, &dyn rusqlite::ToSql)> = Vec::new();
+
+        // filter on block range
+        match (from_block, to_block) {
+            (Some(from_block), Some(to_block)) => {
+                where_statement_parts.push("block_number BETWEEN :from_block AND :to_block");
+                params.push((":from_block", from_block));
+                params.push((":to_block", to_block));
+            }
+            (Some(from_block), None) => {
+                where_statement_parts.push("block_number >= :from_block");
+                params.push((":from_block", from_block));
+            }
+            (None, Some(to_block)) => {
+                where_statement_parts.push("block_number <= :to_block");
+                params.push((":to_block", to_block));
+            }
+            (None, None) => {}
+        }
 
         if !keys.is_empty() {
             let needed =
@@ -133,8 +170,13 @@ impl StarknetEventsTable {
 
         let mut key_fts_expression = String::new();
 
-        let (mut base_query, mut params) =
-            Self::event_query(base_query, &filter.keys, &mut key_fts_expression);
+        let (mut base_query, mut params) = Self::event_query(
+            base_query,
+            filter.from_block.as_ref(),
+            filter.to_block.as_ref(),
+            &filter.keys,
+            &mut key_fts_expression,
+        );
 
         let mut statement = tx.prepare(&base_query).context("Preparing SQL query")?;
         let mut rows = statement
@@ -147,10 +189,10 @@ impl StarknetEventsTable {
             let abi = zstd::decode_all(&*abi).unwrap();
             let class = ContractClass::from_definition_bytes(&abi);
             let abi = class.ok().unwrap().abi.unwrap();
-            let keys = row.get_ref_unwrap("keys").as_str().unwrap();
             let block_number = row.get_ref_unwrap("block_number").as_i64().unwrap() as u64;
-            let transaction_hash = row.get_unwrap("transaction_hash");
-            let contract_address = row.get_unwrap("from_address");
+            let transaction_hash: StarknetTransactionHash = row.get_unwrap("transaction_hash");
+
+            let contract_address: ContractAddress = row.get_unwrap("from_address");
             let data = row.get_ref_unwrap("data").as_blob().unwrap();
             let data: Vec<_> = data
                 .chunks_exact(32)
@@ -159,20 +201,6 @@ impl StarknetEventsTable {
                     EventData(data)
                 })
                 .collect();
-
-            // no need to allocate a vec for this in loop
-            let mut temp = [0u8; 32];
-
-            let keys: Vec<_> = keys
-                .split(' ')
-                .map(|key| {
-                    let used =
-                        base64::decode_config_slice(key, base64::STANDARD, &mut temp).unwrap();
-                    let key = Felt::from_be_slice(&temp[..used]).unwrap();
-                    EventKey(key)
-                })
-                .collect();
-
             for x in abi.iter() {
                 match x {
                     ContractAbiEntry::Event(value) => match value.name.as_str() {
@@ -184,45 +212,43 @@ impl StarknetEventsTable {
                                     let from = &data[0].0;
                                     let to = &data[1].0;
                                     let token_id = starkhash_to_dec_str(&data[2].0);
+                                    let mut event = StarknetEmittedEvent {
+                                        contract_address,
+                                        from: from.to_string(),
+                                        to: to.to_string(),
+                                        token_id,
+                                        block_number,
+                                        transaction_hash,
+                                        event_type: EventType::None,
+                                        contrat_type: ContractType::ERC721,
+                                    };
                                     match starkhash_to_dec_str(from).as_str() {
                                         "0" => {
-                                            let event = StarknetEmittedEvent {
-                                                contract_address,
-                                                from : from.to_string(),
-                                                to: to.to_string(),
-                                                token_id,
-                                                block_number,
-                                                transaction_hash,
-                                                event_type: "Minted".to_string()
-                                            };
-                                
-                                            emitted_events.push(event);
+                                            event.event_type = EventType::Mint;
                                         }
                                         _ => {
-                                            let event = StarknetEmittedEvent {
-                                                contract_address,
-                                                from : from.to_string(),
-                                                to: to.to_string(),
-                                                token_id,
-                                                block_number,
-                                                transaction_hash,
-                                                event_type: "Transfer".to_string()
-                                            };
-                                
-                                            emitted_events.push(event);
+                                            match starkhash_to_dec_str(to).as_str() {
+                                                "0" => {
+                                                    event.event_type = EventType::Burn;
+                                                }
+                                                _ => {
+                                                    event.event_type = EventType::Transfer;
+                                                }
                                             }
                                         }
+                                    }
+                                    emitted_events.push(event);
                                 }
                                 _ => {}
                             }
                         }
+                        "TransferSingle" => (),
+                        "TransferBatch" => (),
                         _ => (),
                     },
                     _ => (),
                 }
             }
-
-        
         }
 
         Ok(Events {
